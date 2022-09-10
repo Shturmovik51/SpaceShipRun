@@ -42,6 +42,7 @@ namespace Characters
                 return;
             }
             gameObject.name = playerName;
+            serverPosition = transform.position;
             cameraOrbit = FindObjectOfType<CameraOrbit>();
             cameraOrbit.Initiate(cameraAttach == null ? transform : cameraAttach);
             playerLabel = GetComponentInChildren<PlayerLabel>();
@@ -59,7 +60,7 @@ namespace Characters
             var isFaster = Input.GetKey(KeyCode.LeftShift);
             var speed = spaceShipSettings.ShipSpeed;
             var faster = isFaster ? spaceShipSettings.Faster : 1.0f;
-
+            serverPosition = transform.position;
             shipSpeed = Mathf.Lerp(shipSpeed, speed * faster,
                 SettingsContainer.Instance.SpaceShipSettings.Acceleration);
 
@@ -80,13 +81,32 @@ namespace Characters
             }
         }
 
-        protected override void FromServerUpdate() { }
+        protected override void FromServerUpdate() { transform.position = serverPosition; }
         protected override void SendToServer() { }
 
         [ClientCallback]
         private void LateUpdate()
         {
             cameraOrbit?.CameraMovement();
+            gameObject.name = playerName;
+        }
+
+        [ServerCallback]
+        public void OnTriggerEnter(Collider other)
+        {
+            RpcChangePosition(new Vector3(100, 100, 100));
+
+            //gameObject.SetActive(false);
+            //transform.position = new Vector3(100, 100, 100);
+            //gameObject.SetActive(true);
+        }
+
+        [ClientRpc]
+        public void RpcChangePosition(Vector3 position)
+        {
+            gameObject.SetActive(false);
+            transform.position = position;
+            gameObject.SetActive(true);
         }
     }
 }
