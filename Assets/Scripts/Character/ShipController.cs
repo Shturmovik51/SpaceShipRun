@@ -1,6 +1,7 @@
 using Main;
 using Mechanics;
 using Network;
+using System;
 using UI;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -9,6 +10,8 @@ namespace Characters
 {
     public class ShipController : NetworkMovableObject
     {
+        public Action<int, Transform> OnCollideWithCrystall;
+        public Action<int> OnChangeCrystallsCount;
         public string PlayerName
         {
             get => playerName;
@@ -22,6 +25,8 @@ namespace Characters
         private PlayerLabel playerLabel;
         private float shipSpeed;
         private Rigidbody rb;
+        public int ConnectionID { get; private set; }
+        public int CrystallsCount { get; private set; }
 
         [SyncVar] private string playerName;
 
@@ -94,11 +99,40 @@ namespace Characters
         [ServerCallback]
         public void OnTriggerEnter(Collider other)
         {
-            RpcChangePosition(new Vector3(100, 100, 100));
+            if (other.CompareTag("Crystall"))
+            {
+                OnCollideWithCrystall?.Invoke(ConnectionID, other.gameObject.transform);
+                Debug.Log($"send {ConnectionID}");
+            }
+            else
+            {
+                RpcChangePosition(new Vector3(100, 100, 100));
+            }           
+        }
 
-            //gameObject.SetActive(false);
-            //transform.position = new Vector3(100, 100, 100);
-            //gameObject.SetActive(true);
+        [ServerCallback]
+        private void OnCollisionEnter(Collision collision)        
+        {
+            Destroy(collision.gameObject);
+            Destroy(gameObject);
+        }
+
+        public void InitPlayer(int id)
+        {
+            ConnectionID = id;
+            CrystallsCount = 0;
+        }
+
+        [ClientRpc]
+        public void RpcIncreaseCrystallsCount()
+        {
+            CrystallsCount++;
+            OnChangeCrystallsCount?.Invoke(CrystallsCount);
+        }
+
+        public void IncreaseCrystallsCount()
+        {
+            CrystallsCount++;
         }
 
         [ClientRpc]

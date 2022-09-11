@@ -6,58 +6,270 @@ using UnityEngine.Networking;
 
 namespace Main
 {
-    public class SolarSystemNetworkManager : NetworkManager
+    public partial class SolarSystemNetworkManager : NetworkManager
     {
         [SerializeField] private string playerName;
         [SerializeField] private TMP_InputField _inputField;
-        [SerializeField] private int count;
+        [SerializeField] private GameObject _crystallPrefab;
+        [SerializeField] private float _spawnRadius;
+        [SerializeField] private int _crystallsCount;
+        [SerializeField] private TextMeshProUGUI _currentCrystallsCountTitle;
+        [SerializeField] private TextMeshProUGUI _currentRemainingCountTitle;
+        [SerializeField] private TextMeshProUGUI _currentCrystallsCountText;
+        [SerializeField] private TextMeshProUGUI _currentRemainingCountText;
+        [SerializeField] private GameObject _leaderBoard;
+        [SerializeField] private TextMeshProUGUI _leaderBoardNameText;
+        [SerializeField] private TextMeshProUGUI _leaderBoardScoreText;
 
-        private Dictionary<int, ShipController> _players = new Dictionary<int, ShipController>();
-
+        private int _remainingCrystallsCount;
+        private int _currentCrystallsCount;
+        private int _playerIDOnServer;
+        private Dictionary<int, ShipController> _players;
+        private List<Transform> _crystalls;
+        private GameObject _crystallsHolder;
+           
         public override void OnServerAddPlayer(NetworkConnection conn, short playerControllerId)
         {
             var spawnTransform = GetStartPosition();
 
             var player = Instantiate(playerPrefab, spawnTransform.position, spawnTransform.rotation);
-            player.GetComponent<ShipController>().PlayerName = playerName;
-            _players.Add(conn.connectionId, player.GetComponent<ShipController>());
+            var shipController = player.GetComponent<ShipController>();
+            shipController.PlayerName = playerName;
+            shipController.InitPlayer(conn.connectionId);
+            shipController.OnCollideWithCrystall += OnDestroyCrystall;
+            Debug.Log(conn.connectionId);
+            _players.Add(conn.connectionId, shipController);
 
             NetworkServer.AddPlayerForConnection(conn, player, playerControllerId);
+
+            MessageInt serverID = new MessageInt()
+            {
+                ID = conn.connectionId
+            };
+            NetworkServer.SendToClient(conn.connectionId, 203, serverID);
+
+            for (int i = 0; i < _crystalls.Count; i++)
+            {
+                MessageCrystallPos crystall = new MessageCrystallPos
+                {
+                    CrystallPos = _crystalls[i].position
+                };
+                NetworkServer.SendToClient(conn.connectionId, 200, crystall);
+            }
+
+            //for (int i = 0; i < _crystalls.Count; i++)
+            //{
+            //    MessageGameobject crystall = new MessageGameobject
+            //    {
+            //        Crystall = _crystalls[i].gameObject
+            //    };
+            //    NetworkServer.SendToClient(conn.connectionId, 200, crystall);
+            //}
+        }
+
+        public override void OnStartServer()
+        {
+            base.OnStartServer();
+            _players = new Dictionary<int, ShipController>();
+            _crystalls = new List<Transform>();
+            CreateCrystalls();
         }
 
         public override void OnServerConnect(NetworkConnection conn)
         {
             base.OnServerConnect(conn);
-            NetworkServer.RegisterHandler(100, SendName);
-        }
-
-        public class MessageLogin : MessageBase 
-        {
-            public string login;
-
-            public override void Deserialize(NetworkReader reader)
-            {
-                login = reader.ReadString();
-            }
-
-            public override void Serialize(NetworkWriter writer)
-            {
-                writer.Write(login);
-            }
-        }
-
+            NetworkServer.RegisterHandler(100, SendName); 
+        }  
+               
         public override void OnClientConnect(NetworkConnection conn)
         {
             base.OnClientConnect(conn);
+            client.RegisterHandler(200, CreateCrystall);
+            client.RegisterHandler(201, ClientRefreshCounts);
+            client.RegisterHandler(202, DeleteCrystall);
+            client.RegisterHandler(203, SetServerID);
+            client.RegisterHandler(204, ClientSetLeaderBoardName);
+            client.RegisterHandler(205, ClientSetLeaderBoardScore);
+            Debug.Log(conn.connectionId);
             MessageLogin login = new MessageLogin();
             login.login = _inputField.text;
             conn.Send(100, login);
+        }
+
+        public override void OnStartClient(NetworkClient client)
+        {
+            base.OnStartClient(client);
+            _currentCrystallsCountText.enabled = true;
+            _currentCrystallsCountText.text = 0.ToString();
+            _leaderBoardNameText.text = "";
+            _leaderBoardScoreText.text = "";
+            _remainingCrystallsCount = 0;
+            _currentCrystallsCountTitle.enabled = true;
+            _currentRemainingCountTitle.enabled = true;
+            _currentCrystallsCountText.enabled = true;
+            _currentRemainingCountText.enabled = true;
         }
 
         public void SendName(NetworkMessage networkMessage)
         {
             _players[networkMessage.conn.connectionId].PlayerName = networkMessage.reader.ReadString();
             _players[networkMessage.conn.connectionId].gameObject.name = _players[networkMessage.conn.connectionId].PlayerName;
+        }
+
+        public override void OnStopServer()
+        {
+            base.OnStopServer();
+            _players.Clear();
+            foreach (var crystall in _crystalls)
+            {
+                Destroy(crystall.gameObject);
+            }
+            _crystalls.Clear();
+        }
+
+        private void CreateCrystall(NetworkMessage networkMessage)
+        {
+            if(_crystalls == null)
+            {
+                _crystalls = new List<Transform>();
+            }
+
+            if(_crystallsHolder == null)
+            {
+                _crystallsHolder = new GameObject("CrystallsHolder");
+            }
+
+            var examplePosition = networkMessage.reader.ReadVector3();
+
+            var crystall = Instantiate(_crystallPrefab, _crystallsHolder.transform);
+            crystall.transform.position = examplePosition;
+            crystall.transform.localScale = new Vector3(10, 10, 10);
+            _crystalls.Add(crystall.transform);
+            _remainingCrystallsCount++;
+            _currentRemainingCountText.text = _remainingCrystallsCount.ToString();
+            //var exampleGO = networkMessage.reader.ReadGameObject();
+            //Debug.Log(exampleGO);
+            //exampleGO.transform.parent = _crystallsHolder.transform;           
+        }
+
+        private void CreateCrystalls()
+        {
+            _crystallsHolder = new GameObject("CrystallsHolder");
+
+            for (int i = 0; i < _crystallsCount; i++)
+            {
+                var crystallTransform = Instantiate(_crystallPrefab, _crystallsHolder.transform).transform;
+                crystallTransform.localScale = new Vector3(10, 10, 10);
+                crystallTransform.position = Random.insideUnitSphere* _spawnRadius;
+                _crystalls.Add(crystallTransform);
+            }
+        }    
+         
+        public void OnDestroyCrystall(int connID, Transform crystallTransform)
+        {
+            var crystall = _crystalls.Find(crystall => crystall == crystallTransform);
+
+            if(crystall != null)
+            {
+                var index = _crystalls.IndexOf(crystall);
+
+                MessageInt crystallID = new MessageInt()
+                {
+                    ID = index
+                };
+                NetworkServer.SendToAll(202, crystallID);
+
+                Destroy(_crystalls[index].gameObject);
+                _crystalls.Remove(_crystalls[index]);
+
+                RefreshCounts(connID);
+
+                Debug.Log($"sendToAll {connID}");
+            }
+            
+            if (_crystalls.Count == 0)
+            {
+                SetLeaderBoard();
+            }
+
+        }
+
+        private void RefreshCounts(int index)
+        {
+            _players[index].RpcIncreaseCrystallsCount();
+            _players[index].IncreaseCrystallsCount();
+
+            MessageInt clientID = new MessageInt()
+            {
+                ID = index
+            };
+            NetworkServer.SendToAll(201, clientID);
+        }
+
+        private void ClientRefreshCounts(NetworkMessage networkMessage)
+        { 
+            if (_playerIDOnServer == networkMessage.reader.ReadInt16())
+            {               
+                _currentCrystallsCount++;
+                _currentCrystallsCountText.text = _currentCrystallsCount.ToString();
+            }
+            _remainingCrystallsCount--;
+            _currentRemainingCountText.text = _remainingCrystallsCount.ToString();
+        }
+
+        public void DeleteCrystall(NetworkMessage networkMessage)
+        {
+            var index = networkMessage.reader.ReadInt16();
+            Destroy(_crystalls[index].gameObject);
+            _crystalls.Remove(_crystalls[index]);
+            Debug.Log("delete");
+        }
+
+        public void SetServerID(NetworkMessage networkMessage)
+        {
+            _playerIDOnServer = networkMessage.reader.ReadInt16();
+        }
+
+        private void SetLeaderBoard()
+        {
+            foreach (var pair in _players)
+            {
+                var player = pair.Value;
+
+                MessageLogin playerName = new MessageLogin()
+                {
+                    login = player.PlayerName
+                };
+                NetworkServer.SendToAll(204, playerName);
+
+                MessageInt playerScore = new MessageInt()
+                {
+                    ID = player.CrystallsCount
+                };
+                NetworkServer.SendToAll(205, playerScore);
+            }
+        }
+
+        private void ClientSetLeaderBoardName(NetworkMessage networkMessage)
+        {
+            if (!_leaderBoard.activeInHierarchy)
+            {
+                _leaderBoard.SetActive(true);
+            }
+
+            if (Time.timeScale == 1)
+            {
+                Time.timeScale = 0;
+            }
+
+            var name = networkMessage.reader.ReadString();
+            _leaderBoardNameText.text = _leaderBoardNameText.text + name + "\n";
+        }
+
+        private void ClientSetLeaderBoardScore(NetworkMessage networkMessage)
+        {
+            var score = networkMessage.reader.ReadInt16();
+            _leaderBoardScoreText.text = _leaderBoardScoreText.text + score + "\n";
         }
     }
 }
