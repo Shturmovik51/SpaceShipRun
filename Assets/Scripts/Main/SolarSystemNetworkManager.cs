@@ -20,6 +20,7 @@ namespace Main
         [SerializeField] private GameObject _leaderBoard;
         [SerializeField] private TextMeshProUGUI _leaderBoardNameText;
         [SerializeField] private TextMeshProUGUI _leaderBoardScoreText;
+        [SerializeField] private List<ObjectsRotation> _objectsForRotate;
 
         private int _remainingCrystallsCount;
         private int _currentCrystallsCount;
@@ -27,7 +28,21 @@ namespace Main
         private Dictionary<int, ShipController> _players;
         private List<Transform> _crystalls;
         private GameObject _crystallsHolder;
-           
+        private bool _isServer;
+
+        private void Update()
+        {
+            if (_isServer) return;
+
+            if(_objectsForRotate != null && _objectsForRotate.Count > 0)
+            {
+                foreach (var controller in _objectsForRotate)
+                {
+                    controller.StartIJobRotationTask(Time.deltaTime);
+                }
+            }
+        }
+
         public override void OnServerAddPlayer(NetworkConnection conn, short playerControllerId)
         {
             var spawnTransform = GetStartPosition();
@@ -57,19 +72,17 @@ namespace Main
                 NetworkServer.SendToClient(conn.connectionId, 200, crystall);
             }
 
-            //for (int i = 0; i < _crystalls.Count; i++)
-            //{
-            //    MessageGameobject crystall = new MessageGameobject
-            //    {
-            //        Crystall = _crystalls[i].gameObject
-            //    };
-            //    NetworkServer.SendToClient(conn.connectionId, 200, crystall);
-            //}
+            MessageInt onCompleteObjectsGeneration = new MessageInt()
+            {
+                ID = conn.connectionId
+            };
+            NetworkServer.SendToClient(conn.connectionId, 206, onCompleteObjectsGeneration);           
         }
 
         public override void OnStartServer()
         {
             base.OnStartServer();
+            _isServer = true;
             _players = new Dictionary<int, ShipController>();
             _crystalls = new List<Transform>();
             CreateCrystalls();
@@ -90,6 +103,7 @@ namespace Main
             client.RegisterHandler(203, SetServerID);
             client.RegisterHandler(204, ClientSetLeaderBoardName);
             client.RegisterHandler(205, ClientSetLeaderBoardScore);
+            client.RegisterHandler(206, StartObjectsRotation);
             Debug.Log(conn.connectionId);
             MessageLogin login = new MessageLogin();
             login.login = _inputField.text;
@@ -99,6 +113,7 @@ namespace Main
         public override void OnStartClient(NetworkClient client)
         {
             base.OnStartClient(client);
+            _isServer = false;
             _currentCrystallsCountText.enabled = true;
             _currentCrystallsCountText.text = 0.ToString();
             _leaderBoardNameText.text = "";
@@ -230,6 +245,17 @@ namespace Main
             _playerIDOnServer = networkMessage.reader.ReadInt16();
         }
 
+        private void StartObjectsRotation(NetworkMessage networkMessage)
+        {
+            if (_objectsForRotate == null)
+            {
+                _objectsForRotate = new List<ObjectsRotation>(_crystalls.Count);
+            }
+
+            var rotationController = new ObjectsRotation(_crystalls);
+            _objectsForRotate.Add(rotationController);
+        }
+
         private void SetLeaderBoard()
         {
             foreach (var pair in _players)
@@ -270,6 +296,14 @@ namespace Main
         {
             var score = networkMessage.reader.ReadInt16();
             _leaderBoardScoreText.text = _leaderBoardScoreText.text + score + "\n";
+        }
+
+        private void OnDestroy()
+        {
+            foreach (var controller in _objectsForRotate)
+            {
+                controller.CleanUp();
+            }
         }
     }
 }
