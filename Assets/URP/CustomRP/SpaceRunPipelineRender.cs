@@ -7,6 +7,8 @@ public class SpaceRunPipelineRender : RenderPipeline
 {
     CameraRenderer _cameraRenderer;
 
+
+
     protected override void Render(ScriptableRenderContext context, Camera[] cameras)
     {
         _cameraRenderer = new CameraRenderer();

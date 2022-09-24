@@ -1,8 +1,11 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEditor;
+using UnityEditor.Rendering.LookDev;
 using UnityEngine;
 using UnityEngine.Rendering;
+using static UnityEngine.Experimental.Rendering.RayTracingAccelerationStructure;
 
 public partial class CameraRenderer
 {
@@ -17,6 +20,18 @@ public partial class CameraRenderer
                                     //new ShaderTagId("UniversalForward"), 
                                     //new ShaderTagId("LightweightForward") 
                                 };
+
+    const int maxVisibleLights = 4;
+
+    static int visibleLightColorsId = Shader.PropertyToID("_VisibleLightColors");
+    static int visibleLightDirectionsId = Shader.PropertyToID("_VisibleLightDirections");
+    static int visibleLightDirectionsOrPositionsId = Shader.PropertyToID("_VisibleLightDirectionsOrPositions");
+    static int visibleLightAttenuationsId = Shader.PropertyToID("_VisibleLightAttenuations");
+
+    Vector4[] visibleLightColors = new Vector4[maxVisibleLights];
+    Vector4[] visibleLightDirections = new Vector4[maxVisibleLights];
+    Vector4[] visibleLightDirectionsOrPositions = new Vector4[maxVisibleLights];
+    Vector4[] visibleLightAttenuations = new Vector4[maxVisibleLights];
 
     public void Render(ScriptableRenderContext context, Camera camera)
     {
@@ -52,6 +67,60 @@ public partial class CameraRenderer
         _commandBuffer.BeginSample(bufferName);
         _commandBuffer.SetGlobalColor("_GlobalCal", Color.blue);
         ExecuteCommandBuffer();
+
+        //CameraClearFlags clearFlags = _camera.clearFlags;
+        //_commandBuffer.ClearRenderTarget(
+        //    (clearFlags & CameraClearFlags.Depth) != 0,
+        //    (clearFlags & CameraClearFlags.Color) != 0,
+        //    _camera.backgroundColor
+        //);
+
+        //ConfigureLights();
+
+        //_commandBuffer.BeginSample("Render Camera");
+        //_commandBuffer.SetGlobalVectorArray(visibleLightColorsId, visibleLightColors);
+        //_commandBuffer.SetGlobalVectorArray(visibleLightAttenuationsId, visibleLightAttenuations);
+        //_commandBuffer.SetGlobalVectorArray(visibleLightDirectionsId, visibleLightDirections);
+        //ExecuteCommandBuffer();
+        ////_commandBuffer.Clear();
+
+    }
+
+    void ConfigureLights()
+    {
+        int i = 0;
+        for (; i < _cullingResult.visibleLights.Length; i++)
+        {
+            if (i == maxVisibleLights)
+            {
+                break;
+            }
+
+            VisibleLight light = _cullingResult.visibleLights[i];
+            visibleLightColors[i] = light.finalColor;
+
+            Vector4 attenuation = Vector4.zero;
+
+            if (light.lightType == LightType.Directional)
+            {
+                Vector4 v = light.localToWorldMatrix.GetColumn(2);
+                v.x = -v.x;
+                v.y = -v.y;
+                v.z = -v.z;
+                visibleLightDirections[i] = v;
+            }
+            else
+            {
+                visibleLightDirectionsOrPositions[i] = light.localToWorldMatrix.GetColumn(3);
+                attenuation.x = 1f / Mathf.Max(light.range * light.range, 0.00001f);
+            }
+
+            visibleLightAttenuations[i] = attenuation;
+        }
+        for (; i < maxVisibleLights; i++)
+        {
+            visibleLightColors[i] = Color.clear;
+        }
     }
 
     private void DrawVisible()
