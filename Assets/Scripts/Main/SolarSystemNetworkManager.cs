@@ -3,16 +3,13 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.UI;
 
 namespace Main
 {
     public partial class SolarSystemNetworkManager : NetworkManager
     {
-        [SerializeField] private string playerName;
-        [SerializeField] private TMP_InputField _inputField;
         [SerializeField] private GameObject _crystallPrefab;
-        [SerializeField] private float _spawnRadius;
-        [SerializeField] private int _crystallsCount;
         [SerializeField] private TextMeshProUGUI _currentCrystallsCountTitle;
         [SerializeField] private TextMeshProUGUI _currentRemainingCountTitle;
         [SerializeField] private TextMeshProUGUI _currentCrystallsCountText;
@@ -21,6 +18,7 @@ namespace Main
         [SerializeField] private TextMeshProUGUI _leaderBoardNameText;
         [SerializeField] private TextMeshProUGUI _leaderBoardScoreText;
         [SerializeField] private List<ObjectsRotation> _objectsForRotate;
+        [SerializeField] private Button button;
 
         private int _remainingCrystallsCount;
         private int _currentCrystallsCount;
@@ -29,6 +27,21 @@ namespace Main
         private List<Transform> _crystalls;
         private GameObject _crystallsHolder;
         private bool _isServer;
+        private float _spawnRadius;
+        private int _crystallsCount;
+        private string _enteredLogin;
+        private string _playerName;
+               
+        public void SetServerOptions(int count, float radius)
+        {
+            _crystallsCount = count;
+            _spawnRadius = radius;
+        }
+
+        public void SetClientOptions(string login)
+        {
+            _enteredLogin = login;
+        }
 
         private void Update()
         {
@@ -40,7 +53,7 @@ namespace Main
                 {
                     controller.StartIJobRotationTask(Time.deltaTime);
                 }
-            }
+            }            
         }
 
         public override void OnServerAddPlayer(NetworkConnection conn, short playerControllerId)
@@ -49,7 +62,7 @@ namespace Main
 
             var player = Instantiate(playerPrefab, spawnTransform.position, spawnTransform.rotation);
             var shipController = player.GetComponent<ShipController>();
-            shipController.PlayerName = playerName;
+            shipController.PlayerName = _playerName;
             shipController.InitPlayer(conn.connectionId);
             shipController.OnCollideWithCrystall += OnDestroyCrystall;
             Debug.Log(conn.connectionId);
@@ -106,7 +119,7 @@ namespace Main
             client.RegisterHandler(206, StartObjectsRotation);
             Debug.Log(conn.connectionId);
             MessageLogin login = new MessageLogin();
-            login.login = _inputField.text;
+            login.login = _enteredLogin;
             conn.Send(100, login);
         }
 
@@ -300,9 +313,12 @@ namespace Main
 
         private void OnDestroy()
         {
-            foreach (var controller in _objectsForRotate)
+            if(_objectsForRotate != null)
             {
-                controller.CleanUp();
+                foreach (var controller in _objectsForRotate)
+                {
+                    controller.CleanUp();
+                }
             }
         }
     }
