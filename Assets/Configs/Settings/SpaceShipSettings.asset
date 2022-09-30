@@ -22,5 +22,6 @@ MonoBehaviour:
   _renderTextureHeight: 1920
   _spawnPoints:
   - {fileID: 0}
+  - {fileID: 0}
   _prefab: {fileID: 4748619023902772234, guid: fd9a07230dea56448bff27c55a711f4e, type: 3}
   _spawnPointsHolder: {fileID: 0}

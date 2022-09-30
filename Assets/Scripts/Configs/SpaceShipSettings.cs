@@ -55,6 +55,8 @@ namespace Data
         {
             if (_spawnPoints == null) _spawnPoints = new List<GameObject>();
 
+            if (_spawnPoints.Contains(point)) return;
+
             _spawnPoints.Add(point);
         }
 
