@@ -9,6 +9,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fdf7fc4e8aa067f428d607406903a22e, type: 3}
-  m_Name: Space Run Pipeline Render Asset
+  m_Script: {fileID: 11500000, guid: af30cafb22a729948a6baed54d88f202, type: 3}
+  m_Name: Custom Render Pipeline Asset
   m_EditorClassIdentifier: 
+  useDynamicBatching: 1
+  useGPUInstancing: 1
+  useSRPBatcher: 1

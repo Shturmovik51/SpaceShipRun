@@ -18,7 +18,6 @@ namespace Main
         [SerializeField] private TextMeshProUGUI _leaderBoardNameText;
         [SerializeField] private TextMeshProUGUI _leaderBoardScoreText;
         [SerializeField] private List<ObjectsRotation> _objectsForRotate;
-        [SerializeField] private Button button;
 
         private int _remainingCrystallsCount;
         private int _currentCrystallsCount;

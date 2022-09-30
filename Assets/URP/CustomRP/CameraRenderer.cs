@@ -70,7 +70,7 @@ public partial class CameraRenderer
     {
         buffer.EndSample(SampleName);
         ExecuteBuffer();
-        context.Submit();
+        context.Submit();    
     }
 
     void ExecuteBuffer()
