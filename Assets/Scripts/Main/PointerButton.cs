@@ -47,7 +47,7 @@ public class PointerButton : Button
     {
         DOTween.Kill($"ScaleUp {_nameID}");
         _hideSequence = DOTween.Sequence();
-        _hideSequence.SetId($"ScaleUp {_nameID}");
+        _hideSequence.SetId($"ScaleDown {_nameID}");
         _hideSequence.Append(gameObject.transform.DOScale(_mainScale, 0.2f));
     }
 
